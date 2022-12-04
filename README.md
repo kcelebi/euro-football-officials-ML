@@ -8,16 +8,18 @@ This topic has been discussed in house-holds, bars, stadiums, and board-meetings
 
 ## Table of Contents
 
-- [!Project Usage](#project-usage)
-- [!Data Selection](#data-selection)
-- [!Feature Engineering](#feature-engineering)
-- [!Model Selection](#model-selection)
-- [!Results](#results)
-- [!Discussion](#discussion)
+- [Project Usage](#project-usage)
+- [Data Selection](#data-selection)
+- [Feature Engineering](#feature-engineering)
+- [Model Selection](#model-selection)
+- [Results](#results)
+- [Discussion](#discussion)
 
 ## Project Usage
 
 ## Data Selection
+
+This data uses the [Open Database License](https://opendatacommons.org/licenses/odbl/1-0/) and was not created by me.
 
 ## Feature Engineering
 
