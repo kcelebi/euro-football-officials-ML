@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import lxml.etree as etree
 import sqlite3 as sql
+from tqdm.notebook import tqdm
 
 __all__ = ['DB']
 
@@ -23,7 +24,8 @@ class DB:
         self.league = self.getDF('League')
         self.player = self.getDF('Player')
 
-        self.foul_df = self.getFoulDF()
+        self.match_team = self.joinMatchTeamDF()
+
         #self.card_df = self.getCardDF()
 
     '''
@@ -48,7 +50,39 @@ class DB:
     def getDF(self, df_name):
         return pd.read_sql_query('SELECT * FROM %s' % df_name, self.con)
 
-    def getFoulDF(self):
+
+    def unravel(self):
+        columns = [
+            'match_api_id',
+            'date',
+            'home_team_name',
+            'away_team_name',
+            'foul_id',
+            'event_incident_typefk_foul',
+            'elapsed_foul',
+            'player1_name',
+            'player2_name',
+            'foul_team',
+            'foul_type',
+            'foul_subtype'
+            'event_incident_typefk_card',
+            'ycards',
+            'elapsed_card',
+            'player_card',
+            'card_team',
+            'card_type',
+            'card_subtype',
+            'comment'
+        ]
+        df = self.match_team.copy(deep = True)
+        for i in tqdm(range(df.shape[0])):
+            df = pd.merge(df, self.unravelFoulDF(i), how = 'left', left_on = 'match_api_id', right_on = 'match_id')
+            df = df.drop(['match_id'], axis = 1)
+            df = pd.merge(df, self.unravelCardDF(i), how = 'left', left_on = 'match_api_id', right_on = 'match_id')
+            df = df.drop(['match_id'], axis = 1)
+        return df[columns]
+
+    def joinMatchTeamDF(self):
         columns = ['match_api_id','date','home_team_api_id', 'away_team_api_id', 'foulcommit', 'card', 'corner']
         short_match = self.match.dropna(subset = ['foulcommit'])[columns]
         short_team = self.team[['team_api_id', 'team_long_name']]
@@ -83,9 +117,9 @@ class DB:
     	Unravel foul XML in foulcommits column for the foul_df table.
     '''
     def unravelFoulDF(self, index):
-        if self.foul_df is not None:
-            xml = self.foul_df['foulcommit'].iloc[index]
-            match_id = self.foul_df['match_api_id'].iloc[index]
+        if self.match_team is not None:
+            xml = self.match_team['foulcommit'].iloc[index]
+            match_id = self.match_team['match_api_id'].iloc[index]
             root = etree.fromstring(xml)
             unique_elems = []
             for child in root:
@@ -116,25 +150,29 @@ class DB:
             foul_df = pd.DataFrame(d)
             foul_df = foul_df.fillna({'elapsed_plus':0, 'player1' : -1, 'player2' : -1})
             foul_df['elapsed'] = pd.to_numeric(foul_df['elapsed'])
-            foul_df['elapsed_plus'] = pd.to_numeric(foul_df['elapsed_plus'])
-            foul_df['elapsed'] += foul_df['elapsed_plus']
-            foul_df = foul_df.rename(columns = {'id' : 'foul_id'})
-            foul_df = foul_df.drop(['elapsed_plus', 'n', 'sortorder'], axis = 1)
+            if 'elapsed_plus' in foul_df.columns:
+                foul_df['elapsed_plus'] = pd.to_numeric(foul_df['elapsed_plus'])
+                foul_df['elapsed'] += foul_df['elapsed_plus']
+                foul_df = foul_df.drop('elapsed_plus', axis = 1)
+            foul_df = foul_df.rename(columns = {
+                'id' : 'foul_id',
+                'event_incident_typefk' : 'event_incident_typefk_foul',
+                'elapsed' : 'elapsed_foul',
+                'type' : 'foul_type',
+                'subtype' : 'foul_subtype',
+                'team' : 'foul_team'
+            })
+            foul_df = foul_df.drop(['n', 'sortorder'], axis = 1)
             foul_df = foul_df.astype({
                 'foulscommitted' : 'int64',
-                'event_incident_typefk' : 'int64',
+                'event_incident_typefk_foul' : 'int64',
                 'player1' : 'int64',
                 'player2' : 'int64',
-                'team' : 'int64',
+                'foul_team' : 'int64',
                 'foul_id' : 'int64'
             })
 
             ## Fouls unravelled, now time to merge main df with it
-            foul_df = pd.merge(
-                self.foul_df.drop('foulcommit', axis = 1), foul_df,
-                how = 'inner', left_on = 'match_api_id', right_on = 'match_id'
-            )
-
             player_columns = ['player_api_id', 'player_name']
             df2 = pd.merge(foul_df, self.player[player_columns], left_on = 'player1', right_on = 'player_api_id')
             df2 = df2.rename(columns = {'player_name' : 'player1_name'})
@@ -142,25 +180,22 @@ class DB:
             df3 = pd.merge(df2, self.player[player_columns], left_on = 'player2', right_on = 'player_api_id')
             df3 = df3.rename(columns = {'player_name' : 'player2_name'})
 
+            foul_df = df3.sort_values(by = 'elapsed_foul')
+
             columns = [
-                'match_api_id',
-                'date',
-                'home_team_api_id',
-                'home_team_name',
-                'away_team_api_id',
-                'away_team_name',
-                'card', 'corner',
+                'match_id',
+                'foul_id',
                 'foulscommitted',
-                'event_incident_typefk',
-                'elapsed',
+                'event_incident_typefk_foul',
+                'elapsed_foul',
                 'player1_name',
                 'player2_name',
-                'team',
-                'type',
-                'subtype',
-                'foul_id']
+                'foul_team',
+                'foul_type',
+                'foul_subtype'
+            ]
 
-            return df3[columns]
+            return foul_df[columns]
 
         return None
 
@@ -168,8 +203,8 @@ class DB:
     	ss
     '''
     def unravelCardDF(self, index):
-        xml = self.foul_df['card'].iloc[index]
-        match_id = self.foul_df['match_api_id'].iloc[index]
+        xml = self.match_team['card'].iloc[index]
+        match_id = self.match_team['match_api_id'].iloc[index]
         root = etree.fromstring(xml)
         unique_elems = []
         for child in root:
@@ -201,6 +236,28 @@ class DB:
 
         card_df = pd.DataFrame(d)
         card_df['elapsed'] = pd.to_numeric(card_df['elapsed'])
-        card_df = card_df.rename({'id' : 'card_id'})
+        if 'elapsed_plus' in card_df.columns:
+            card_df['elapsed_plus'] = pd.to_numeric(card_df['elapsed_plus'])
+            card_df['elapsed'] += card_df['elapsed_plus']
+            card_df = card_df.drop('elapsed_plus', axis = 1)
+        card_df = card_df.rename(columns = {
+            'id' : 'card_id',
+            'event_incident_typefk' : 'event_incident_typefk_card',
+            'elapsed' : 'card_elapsed',
+            'player1' : 'card_player',
+            'team' : 'card_team',
+            'type' : 'card_type',
+            'subtype' : 'card_subtype'
+            })
         card_df = card_df.drop(['n', 'sortorder'], axis = 1)
+
+        #card_df = card_df.fillna({'player1' : -1})
+        '''card_df = card_df.astype({
+            'ycards' : 'int64',
+            'event_incident_typefk' : 'int64',
+            'player1' : 'int64',
+            'team' : 'int64',
+            'card_id' : 'int64'
+        })'''
+
         return card_df
