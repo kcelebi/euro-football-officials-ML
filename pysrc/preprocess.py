@@ -82,6 +82,26 @@ class DB:
             df = df.drop(['match_id'], axis = 1)
         return df[columns]
 
+    def combineCardFoulDF(self):
+        df = pd.DataFrame()
+        for i in tqdm(range(self.match_team.shape[0])):
+            join = pd.merge_asof(
+                self.unravelFoulDF(i), self.unravelCardDF(i),
+                left_on = 'elapsed_foul',
+                right_on = 'card_elapsed',
+                left_by = 'foul_player1_id',
+                right_by = 'card_player_id',
+                direction = 'nearest',
+                tolerance = 1
+            )
+
+            join = join.drop('match_id_y', axis = 1).rename(columns = {'match_id_x': 'match_id'})
+
+            df = pd.concat([df, join])
+
+        return df
+
+
     def joinMatchTeamDF(self):
         columns = ['match_api_id','date','home_team_api_id', 'away_team_api_id', 'foulcommit', 'card', 'corner']
         short_match = self.match.dropna(subset = ['foulcommit'])[columns]
@@ -123,12 +143,17 @@ class DB:
             root = etree.fromstring(xml)
             unique_elems = []
             for child in root:
-                if child[0][0].tag not in unique_elems:
+                if len(child[0]) != 0 and child[0][0].tag not in unique_elems:
                     unique_elems += [child[0][0].tag]
-
-                for child1 in child[1:]:
-                    if child1.tag not in unique_elems:
-                        unique_elems += [child1.tag]
+                
+                if len(child[0]) != 0:
+                    for child1 in child[1:]:
+                        if child1.tag not in unique_elems:
+                            unique_elems += [child1.tag]
+                else:
+                    for child1 in child:
+                        if child1.tag not in unique_elems:
+                            unique_elems += [child1.tag]
             unique_elems
 
             d = {'match_id': []}
@@ -137,10 +162,14 @@ class DB:
 
             for i, child in enumerate(root):
                 d['match_id'] += [match_id]
-                d[child[0][0].tag] += [child[0][0].text]
-
-                for child1 in child[1:]:
-                    d[child1.tag] += [child1.text]
+                
+                if len(child[0]) != 0:
+                    d[child[0][0].tag] += [child[0][0].text]
+                    for child1 in child[1:]:
+                        d[child1.tag] += [child1.text]
+                else:
+                    for child1 in child:
+                        d[child1.tag] += [child1.text]
 
                 key_lengths = [len(d[x]) for x in list(d.keys())]
                 for x in list(d.keys()):
@@ -148,7 +177,7 @@ class DB:
                         d[x] += [None]
 
             foul_df = pd.DataFrame(d)
-            foul_df = foul_df.fillna({'elapsed_plus':0, 'player1' : -1, 'player2' : -1})
+            foul_df = foul_df.fillna({'elapsed_plus':0, 'player1' : -1, 'player2' : -1, 'foulscommitted' : 1})
             foul_df['elapsed'] = pd.to_numeric(foul_df['elapsed'])
             if 'elapsed_plus' in foul_df.columns:
                 foul_df['elapsed_plus'] = pd.to_numeric(foul_df['elapsed_plus'])
@@ -175,10 +204,10 @@ class DB:
             ## Fouls unravelled, now time to merge main df with it
             player_columns = ['player_api_id', 'player_name']
             df2 = pd.merge(foul_df, self.player[player_columns], left_on = 'player1', right_on = 'player_api_id')
-            df2 = df2.rename(columns = {'player_name' : 'player1_name'})
+            df2 = df2.rename(columns = {'player_name' : 'foul_player1', 'player_api_id' : 'foul_player1_id'})
 
             df3 = pd.merge(df2, self.player[player_columns], left_on = 'player2', right_on = 'player_api_id')
-            df3 = df3.rename(columns = {'player_name' : 'player2_name'})
+            df3 = df3.rename(columns = {'player_name' : 'foul_player2', 'player_api_id' : 'foul_player2_id'})
 
             foul_df = df3.sort_values(by = 'elapsed_foul')
 
@@ -188,8 +217,10 @@ class DB:
                 'foulscommitted',
                 'event_incident_typefk_foul',
                 'elapsed_foul',
-                'player1_name',
-                'player2_name',
+                'foul_player1',
+                'foul_player2',
+                'foul_player1_id',
+                'foul_player2_id',
                 'foul_team',
                 'foul_type',
                 'foul_subtype'
@@ -217,7 +248,7 @@ class DB:
                     unique_elems += [child1.tag]
         unique_elems
 
-        d = {'match_id': []}
+        d = {'match_id': [], 'rcards': []}
         for elem in unique_elems:
             d[elem] = []
 
@@ -235,6 +266,7 @@ class DB:
                     d[x] += [None]
 
         card_df = pd.DataFrame(d)
+        card_df = card_df.fillna({'ycards' : 0, 'rcards' : 0})
         card_df['elapsed'] = pd.to_numeric(card_df['elapsed'])
         if 'elapsed_plus' in card_df.columns:
             card_df['elapsed_plus'] = pd.to_numeric(card_df['elapsed_plus'])
@@ -249,7 +281,24 @@ class DB:
             'type' : 'card_type',
             'subtype' : 'card_subtype'
             })
+        card_df = card_df.astype({
+            'card_player' : 'int64',
+            'card_team' : 'int64',
+            'card_id' : 'int64',
+            'ycards' : 'int64',
+            'rcards' : 'int64',
+            'event_incident_typefk_card' : 'int64'
+            })
         card_df = card_df.drop(['n', 'sortorder'], axis = 1)
+
+        player_columns = ['player_api_id', 'player_name']
+        card_df = pd.merge(card_df, self.player[player_columns], how = 'inner', left_on = 'card_player', right_on = 'player_api_id')
+
+        card_df = card_df.drop(['card_player'], axis = 1)
+
+        card_df = card_df.rename(columns = {'player_name' : 'card_player', 'player_api_id' : 'card_player_id'})
+
+        card_df = card_df.sort_values(by = 'card_elapsed')
 
         #card_df = card_df.fillna({'player1' : -1})
         '''card_df = card_df.astype({
