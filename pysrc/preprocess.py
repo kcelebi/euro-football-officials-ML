@@ -194,6 +194,7 @@ class DB:
 
         foul_df = foul_df.sort_values(by = 'elapsed_foul').fillna(0)
 
+        foul_df = foul_df.drop(['injury_time', 'type', 'event_incident_typefk_foul'], axis = 1)
         return foul_df
 
 
@@ -249,5 +250,7 @@ class DB:
         card_df = card_df.astype({
             'player1_id_card' : int
         })
+
+        card_df = card_df.drop(['event_incident_typefk_card', 'card_type', 'goal_type'],axis =1)
 
         return card_df.sort_values(by = 'elapsed_card')
