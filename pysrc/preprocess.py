@@ -50,38 +50,6 @@ class DB:
     def getDF(self, df_name):
         return pd.read_sql_query('SELECT * FROM %s' % df_name, self.con)
 
-
-    def unravel(self):
-        columns = [
-            'match_api_id',
-            'date',
-            'home_team_name',
-            'away_team_name',
-            'foul_id',
-            'event_incident_typefk_foul',
-            'elapsed_foul',
-            'player1_name',
-            'player2_name',
-            'foul_team',
-            'foul_type',
-            'foul_subtype'
-            'event_incident_typefk_card',
-            'ycards',
-            'elapsed_card',
-            'player_card',
-            'card_team',
-            'card_type',
-            'card_subtype',
-            'comment'
-        ]
-        df = self.match_team.copy(deep = True)
-        for i in tqdm(range(df.shape[0])):
-            df = pd.merge(df, self.unravelFoulDF(i), how = 'left', left_on = 'match_api_id', right_on = 'match_id')
-            df = df.drop(['match_id'], axis = 1)
-            df = pd.merge(df, self.unravelCardDF(i), how = 'left', left_on = 'match_api_id', right_on = 'match_id')
-            df = df.drop(['match_id'], axis = 1)
-        return df[columns]
-
     def combineCardFoulDF(self):
         df = pd.DataFrame()
         for i in tqdm(range(self.match_team.shape[0])):
@@ -102,7 +70,7 @@ class DB:
                 left_on = 'elapsed_foul',
                 right_on = 'elapsed_card',
                 left_by = 'player1_id_foul',
-                right_by = 'player1_id_foul',
+                right_by = 'player1_id_card',
                 direction = 'nearest',
                 tolerance = 2
             )
@@ -149,7 +117,7 @@ class DB:
     '''
     def unravelFoulDF(self, index):
         columns = [
-            'card_type',
+            #'card_type',
             #'coordinates',
             #'del',
             'elapsed',
