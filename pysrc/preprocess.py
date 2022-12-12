@@ -83,29 +83,31 @@ class DB:
         df = pd.DataFrame()
         for i in tqdm(range(self.match_team.shape[0])):
             base_elapsed = pd.DataFrame({'elapsed_foul' : list(range(120))})
-            df1 = pd.merge(base_elapsed, self.unravelFoulDF(i), how = 'left', on = 'elapsed_foul')
-            for key in list(df1.dtypes.keys()):
-                if df1.dtypes[key] == np.dtype('float64'):
-                    if key == 'match_id':
-                        mid = df1[~df1['match_id'].isna()]['match_id'].iloc[0]
-                        df1 = df1.fillna({key : mid}).astype({str(key) : int})
-                    df1 = df1.fillna({key : 0}).astype({str(key) : int})
+            df1 = None
+            if self.unravelFoulDF(i).shape[0] != 0:
+                df1 = pd.merge(base_elapsed, self.unravelFoulDF(i), how = 'left', on = 'elapsed_foul')
+                for key in list(df1.dtypes.keys()):
+                    if df1.dtypes[key] == np.dtype('float64'):
+                        if key == 'match_id':
+                            mid = df1[~df1['match_id'].isna()]['match_id'].iloc[0]
+                            df1 = df1.fillna({key : mid}).astype({str(key) : int})
+                        df1 = df1.fillna({key : 0}).astype({str(key) : int})
 
 
-            # Edge case of no fouls
-            if self.unravelCardDF(i).shape[0] > 0:
-                join = pd.merge_asof(
-                    df1, self.unravelCardDF(i),
-                    left_on = 'elapsed_foul',
-                    right_on = 'elapsed_card',
-                    left_by = 'player1_id_foul',
-                    right_by = 'player1_id_card',
-                    direction = 'nearest',
-                    tolerance = 2
-                )
-                join = join.drop('match_id_y', axis = 1).rename(columns = {'match_id_x': 'match_id'})
-                join = join.reset_index(drop = True)
-                df = pd.concat([df, join], ignore_index = True)
+                # Edge case of no fouls
+                if self.unravelCardDF(i).shape[0] > 0:
+                    join = pd.merge_asof(
+                        df1, self.unravelCardDF(i),
+                        left_on = 'elapsed_foul',
+                        right_on = 'elapsed_card',
+                        left_by = 'player1_id_foul',
+                        right_by = 'player1_id_card',
+                        direction = 'nearest',
+                        tolerance = 2
+                    )
+                    join = join.drop('match_id_y', axis = 1).rename(columns = {'match_id_x': 'match_id'})
+                    join = join.reset_index(drop = True)
+                    df = pd.concat([df, join], ignore_index = True)
 
         return df
 
@@ -161,6 +163,8 @@ class DB:
         foul_df['match_id'] = [match_id] * foul_df.shape[0]
 
         foul_df = foul_df.fillna(0)#({'elapsed_plus' : 0, 'player2' : 0, 'player1' : 0})
+        foul_df['player1'] = list(map(lambda x: x if x != 'Unknown player' else 0, foul_df['player1']))
+        foul_df['player2'] = list(map(lambda x: x if x != 'Unknown player' else 0, foul_df['player2']))
         foul_df = foul_df.astype({
             'elapsed': int,
             'elapsed_plus' : int,
