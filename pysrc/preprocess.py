@@ -85,19 +85,31 @@ class DB:
     def combineCardFoulDF(self):
         df = pd.DataFrame()
         for i in tqdm(range(self.match_team.shape[0])):
+            base_elapsed = pd.DataFrame({'elapsed_foul' : list(range(120))})
+            df1 = pd.merge(base_elapsed, self.unravelFoulDF(i), how = 'left', on = 'elapsed_foul')
+            for key in list(df1.dtypes.keys()):
+                if df1.dtypes[key] == np.dtype('float64'):
+                    if key == 'match_id':
+                        mid = df1[~df1['match_id'].isna()]['match_id'].iloc[0]
+                        df1 = df1.fillna({key : mid}).astype({str(key) : int})
+                    df1 = df1.fillna({key : 0}).astype({str(key) : int})
+
+
+            # Edge case of no fouls
+
             join = pd.merge_asof(
-                self.unravelFoulDF(i), self.unravelCardDF(i),
+                df1, self.unravelCardDF(i),
                 left_on = 'elapsed_foul',
                 right_on = 'card_elapsed',
                 left_by = 'foul_player1_id',
                 right_by = 'card_player_id',
                 direction = 'nearest',
-                tolerance = 1
+                tolerance = 2
             )
 
             join = join.drop('match_id_y', axis = 1).rename(columns = {'match_id_x': 'match_id'})
-
-            df = pd.concat([df, join])
+            join = join.reset_index(drop = True)
+            df = pd.concat([df, join], ignore_index = True)
 
         return df
 
@@ -237,76 +249,136 @@ class DB:
         xml = self.match_team['card'].iloc[index]
         match_id = self.match_team['match_api_id'].iloc[index]
         root = etree.fromstring(xml)
+        
+        keys_d = [
+            'elapsed','match_id', 'id','foulscommitted','event_incident_typefk','player1', 
+            'team','type','subtype','ycards','rcards','comment', 'n', 'sortorder', 'card_type'
+        ]
         unique_elems = []
         for child in root:
-            if child[0].tag not in unique_elems:
+            if child[0].tag not in unique_elems and child[0].tag not in keys_d:
                 unique_elems += [child[0].tag]
-            if child[1][0].tag not in unique_elems:
+            if child[1].tag == 'stats' and child[1][0].tag not in unique_elems and child[1][0].tag not in keys_d:
                 unique_elems += [child[1][0].tag]
+            elif child[1].tag != 'stats':
+                for child1 in child[1:]:
+                    if child1.tag not in unique_elems and child1.tag not in keys_d and child1.tag != 'del':
+                        unique_elems += [child1.tag]
+        
             for child1 in child[2:]:
-                if child1.tag not in unique_elems:
+                if child1.tag not in unique_elems and child1.tag not in keys_d:
                     unique_elems += [child1.tag]
-        unique_elems
 
-        d = {'match_id': [], 'rcards': []}
+        d = {}
+        for k in keys_d:
+            d[k] = []
+
         for elem in unique_elems:
             d[elem] = []
 
         for i, child in enumerate(root):
             d['match_id'] += [match_id]
             d[child[0].tag] += [child[0].text]
-            d[child[1][0].tag] += [child[1][0].text]
+    
+            if child[1].tag == 'stats':
+                d[child[1][0].tag] += [child[1][0].text]
 
-            for child1 in child[2:]:
-                d[child1.tag] += [child1.text]
+                for child1 in child[2:]:
+                    d[child1.tag] += [child1.text]
+            else:
+                for child1 in child[1:]:
+                    if child1.tag != 'del':
+                        d[child1.tag] += [child1.text]
 
             key_lengths = [len(d[x]) for x in list(d.keys())]
             for x in list(d.keys()):
                 if len(d[x]) < max(key_lengths):
                     d[x] += [None]
 
-        card_df = pd.DataFrame(d)
-        card_df = card_df.fillna({'ycards' : 0, 'rcards' : 0})
-        card_df['elapsed'] = pd.to_numeric(card_df['elapsed'])
-        if 'elapsed_plus' in card_df.columns:
-            card_df['elapsed_plus'] = pd.to_numeric(card_df['elapsed_plus'])
-            card_df['elapsed'] += card_df['elapsed_plus']
-            card_df = card_df.drop('elapsed_plus', axis = 1)
-        card_df = card_df.rename(columns = {
-            'id' : 'card_id',
-            'event_incident_typefk' : 'event_incident_typefk_card',
-            'elapsed' : 'card_elapsed',
-            'player1' : 'card_player',
-            'team' : 'card_team',
-            'type' : 'card_type',
-            'subtype' : 'card_subtype'
+        card_df = pd.DataFrame(d)#.drop('del', axis = 1)
+        if 'del' in card_df.columns:
+            card_df = card_df.drop('del', axis = 1)
+
+        if card_df.shape[0] != 0:
+            card_df = card_df.fillna({'ycards' : 0, 'rcards' : 0, 'elapsed_plus' : 0})
+            card_df['elapsed'] = pd.to_numeric(card_df['elapsed'])
+            if 'elapsed_plus' in card_df.columns:
+                card_df['elapsed_plus'] = pd.to_numeric(card_df['elapsed_plus'])
+                card_df['elapsed'] += card_df['elapsed_plus']
+                card_df = card_df.drop('elapsed_plus', axis = 1)
+            card_df = card_df.rename(columns = {
+                'id' : 'card_id',
+                'event_incident_typefk' : 'event_incident_typefk_card',
+                'elapsed' : 'card_elapsed',
+                'player1' : 'card_player',
+                'team' : 'card_team',
+                'card_type' : 'card_color',
+                'type' : 'card_type',
+                'subtype' : 'card_subtype'
+                })
+            card_df = card_df.astype({
+                'card_player' : int,
+                'card_team' : int,
+                'card_id' : int,
+                'ycards' : int,
+                'rcards' : int,
+                'event_incident_typefk_card' : int
+                })
+            card_df = card_df.drop(['n', 'sortorder'], axis = 1)
+
+            player_columns = ['player_api_id', 'player_name']
+            card_df = pd.merge(card_df, self.player[player_columns], how = 'inner', left_on = 'card_player', right_on = 'player_api_id')
+
+            card_df = card_df.drop(['card_player'], axis = 1)
+
+            card_df = card_df.rename(columns = {'player_name' : 'card_player', 'player_api_id' : 'card_player_id'})
+
+            card_df = card_df.sort_values(by = 'card_elapsed')
+
+            #card_df = card_df.fillna({'player1' : -1})
+            '''card_df = card_df.astype({
+                'ycards' : 'int64',
+                'event_incident_typefk' : 'int64',
+                'player1' : 'int64',
+                'team' : 'int64',
+                'card_id' : 'int64'
+            })'''
+
+        else:
+            # Edge case of no cards
+            card_df['match_id'] = [self.match_team['match_api_id'].iloc[index]]
+            card_df = card_df.drop(['n', 'sortorder'], axis = 1)
+            card_df['card_player_id'] = [-1]
+            card_df = card_df.rename(columns = {
+                'id' : 'card_id',
+                'event_incident_typefk' : 'event_incident_typefk_card',
+                'elapsed' : 'card_elapsed',
+                'player1' : 'card_player',
+                'team' : 'card_team',
+                'card_type' : 'card_color',
+                'type' : 'card_type',
+                'subtype' : 'card_subtype'
             })
-        card_df = card_df.astype({
-            'card_player' : 'int64',
-            'card_team' : 'int64',
-            'card_id' : 'int64',
-            'ycards' : 'int64',
-            'rcards' : 'int64',
-            'event_incident_typefk_card' : 'int64'
+            card_df = card_df.fillna({
+                'ycards' : 0,
+                'rcards' : 0,
+                'card_elapsed' : 0,
+                'card_id' : -1,
+                'card_player' : -1
             })
-        card_df = card_df.drop(['n', 'sortorder'], axis = 1)
+            card_df = card_df.astype({
+                'card_player_id' : int,
+                #'card_team' : int,
+                'card_id' : int,
+                'ycards' : int,
+                'rcards' : int,
+                'card_elapsed' : int
+                #'event_incident_typefk_card' : int
+            })
 
-        player_columns = ['player_api_id', 'player_name']
-        card_df = pd.merge(card_df, self.player[player_columns], how = 'inner', left_on = 'card_player', right_on = 'player_api_id')
 
-        card_df = card_df.drop(['card_player'], axis = 1)
 
-        card_df = card_df.rename(columns = {'player_name' : 'card_player', 'player_api_id' : 'card_player_id'})
+            #card_df = card_df.sort_by(by  = 'card_elapsed')
 
-        card_df = card_df.sort_values(by = 'card_elapsed')
-
-        #card_df = card_df.fillna({'player1' : -1})
-        '''card_df = card_df.astype({
-            'ycards' : 'int64',
-            'event_incident_typefk' : 'int64',
-            'player1' : 'int64',
-            'team' : 'int64',
-            'card_id' : 'int64'
-        })'''
-
+        
         return card_df
