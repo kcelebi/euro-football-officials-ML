@@ -7,24 +7,44 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(nnet)
+library(broom)
+library(MASS)
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r}
+df <- read.csv('../../data/prep_data.csv')
+df
 ```
 
-## Including Plots
+```{r}
+small <- df %>% select(
+  -match_api_id, -date,
+  -home_team_api_id, -home_team_name,
+  -away_team_name, -away_team_api_id, 
+  -home_team_goal, -away_team_goal)
 
-You can also embed plots, for example:
+train <- sample(1:nrow(small), nrow(small)*0.75)
+test <- (1:nrow(small))[-train]
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+logit <- multinom(result ~ .,small[train,])
+clean <- logit %>% tidy() %>% filter(p.value < 0.05) %>% mutate(odds_estimate = exp(estimate)) %>% select(-std.error, -statistic, -p.value)
+
+
+L_intercept <- (clean %>% filter(y.level== 'L' & term == '(Intercept)'))$estimate
+slopes <- clean %>% filter(y.level == 'L' & term != '(Intercept)') %>% select(estimate)
+clean
+```
+```{r}
+step.model <- stepAIC(logit, direction = "both", trace = FALSE)
+step.model %>% tidy()
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+train_res = mean(predict(step.model, small[train,]) == small[train,]$result)
+test_res = mean(predict(step.model, small[test,]) == small[test,]$result)
+data.frame(train_res = train_res, test_res = test_res)
+```
+

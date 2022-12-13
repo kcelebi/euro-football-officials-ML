@@ -51,7 +51,7 @@ class DB:
 
     def joinMatchTeamDF(self):
         columns = [
-            'match_api_id','date',
+            'match_api_id','league_id', 'date',
             'home_team_api_id', 'away_team_api_id',
             'home_team_goal', 'away_team_goal',
             'foulcommit', 'card', 'corner'
@@ -76,7 +76,7 @@ class DB:
         )
 
         final_columns = [
-            'match_api_id', 'date',
+            'match_api_id', 'league_id', 'date',
             'home_team_api_id', 'home_team_name',
             'away_team_api_id', 'away_team_name',
             'home_team_goal', 'away_team_goal',
@@ -127,7 +127,7 @@ class DB:
         df = pd.merge(self.match_team, df_card, left_on = 'match_api_id', right_on = 'match_id').drop(['match_id'], axis = 1)
         df = pd.merge(df, df_foul, left_on = 'match_api_id', right_on = 'match_id').drop(['match_id'], axis = 1)
         df = df.drop(['foulcommit', 'card', 'corner'], axis = 1)
-        
+
         return df
 
 
