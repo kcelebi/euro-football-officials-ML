@@ -49,3 +49,63 @@ class DB:
     def getDF(self, df_name):
         return pd.read_sql_query('SELECT * FROM %s' % df_name, self.con)
 
+
+    def unravelFoulDF(self, index):
+        columns = ['subtype','team']
+        xml = self.match_team['foulcommit'].iloc[index]
+        match_id = self.match_team['match_api_id'].iloc[index]
+        
+        foul_df = None
+        if xml != '<foulcommit />':
+            foul_df = pd.read_xml(xml)
+        else:
+            return pd.DataFrame()
+
+        for col in columns:
+            if col not in foul_df.columns:
+                foul_df[col] = [None] * foul_df.shape[0]
+
+        foul_df = foul_df[columns]
+        foul_df['match_id'] = [match_id] * foul_df.shape[0]
+
+        foul_df = foul_df.rename(columns = {
+            'subtype' : 'foul_reason',
+            'team' : 'fouling_team'
+        })
+
+        
+
+    def unravelCardDF(self, index):
+        columns = [
+            'match_id',
+            'card_type',
+            'subtype',
+            'team'
+        ]
+        xml = self.match_team['card'].iloc[index]
+        match_id = self.match_team['match_api_id'].iloc[index]
+        
+        foul_df = None
+        if xml != '<card />':
+            foul_df = pd.read_xml(xml)
+        else:
+            return pd.DataFrame()
+
+        for col in columns:
+            if col not in card_df.columns:
+                card_df[col] = [None] * card_df.shape[0]
+
+        card_df = card_df[columns]
+        card_df['match_id'] = [match_id] * card_df.shape[0]
+
+        card_df = card_df.rename(columns = {
+            'subtype' : 'card_reason',
+            'card_type' : 'card_color',
+            'team' : 'carded_team'
+        })
+
+        return card_df
+
+
+
+

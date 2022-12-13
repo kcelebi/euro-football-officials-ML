@@ -202,19 +202,6 @@ class DB:
         Unravel
     '''
     def unravelCardDF(self, index):
-        columns = [
-            'match_id',
-            'card_type',
-            'elapsed',
-            'elapsed_plus',
-            'event_incident_typefk',
-            'goal_type',
-            'id',
-            'player1',
-            'subtype',
-            'team',
-            'type'
-        ]
         xml = self.match_team['card'].iloc[index]
         match_id = self.match_team['match_api_id'].iloc[index]
         
