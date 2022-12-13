@@ -49,6 +49,42 @@ class DB:
     def getDF(self, df_name):
         return pd.read_sql_query('SELECT * FROM %s' % df_name, self.con)
 
+    def joinMatchTeamDF(self):
+        columns = [
+            'match_api_id','date',
+            'home_team_api_id', 'away_team_api_id',
+            'home_team_goal', 'away_team_goal',
+            'foulcommit', 'card', 'corner'
+        ]
+        short_match = self.match.dropna(subset = ['foulcommit'])[columns]
+        short_team = self.team[['team_api_id', 'team_long_name']]
+        m1 = pd.merge(
+            short_match, short_team,
+            how = 'inner', left_on = 'home_team_api_id',
+            right_on = 'team_api_id', suffixes = ("_x", "_y"))
+
+        m2 = pd.merge(
+            m1, short_team,
+            how = 'inner', left_on = 'away_team_api_id',
+            right_on = 'team_api_id', suffixes = ('_x', '_y'))
+
+
+        m2 = m2.rename(columns = {
+            'team_long_name_x' : 'home_team_name',
+            'team_long_name_y' : 'away_team_name'
+            }
+        )
+
+        final_columns = [
+            'match_api_id', 'date',
+            'home_team_api_id', 'home_team_name',
+            'away_team_api_id', 'away_team_name',
+            'home_team_goal', 'away_team_goal',
+            'foulcommit', 'card', 'corner'
+        ]
+
+        return m2[final_columns]
+
 
     def unravelFoulDF(self, index):
         columns = ['subtype','team']
@@ -73,7 +109,27 @@ class DB:
             'team' : 'fouling_team'
         })
 
+        return foul_df
+
+
+    def stackFoulCardDF(self, custom_range = None):
+        if custom_range == None:
+            custom_range = range(self.match_team.shape[0])
+
+        df_card = pd.concat(
+            [pd.get_dummies(self.unravelCardDF(x), columns = ['card_color', 'card_reason']) for x in tqdm(custom_range, desc = 'Stacking Cards') if self.unravelCardDF(x).shape[0] > 0]
+        ).groupby(by = ['match_id', 'carded_team'], as_index = False).sum()
+
+        df_foul = pd.concat(
+            [pd.get_dummies(self.unravelFoulDF(x), columns = ['foul_reason']) for x in tqdm(custom_range, desc = 'Stacking Fouls') if self.unravelFoulDF(x).shape[0] > 0]
+        ).groupby(by = ['match_id', 'fouling_team'], as_index = False).sum()
+
+        df = pd.merge(self.match_team, df_card, left_on = 'match_api_id', right_on = 'match_id').drop(['match_id'], axis = 1)
+        df = pd.merge(df, df_foul, left_on = 'match_api_id', right_on = 'match_id').drop(['match_id'], axis = 1)
+        df = df.drop(['foulcommit', 'card', 'corner'], axis = 1)
         
+        return df
+
 
     def unravelCardDF(self, index):
         columns = [
@@ -85,9 +141,9 @@ class DB:
         xml = self.match_team['card'].iloc[index]
         match_id = self.match_team['match_api_id'].iloc[index]
         
-        foul_df = None
+        card_df = None
         if xml != '<card />':
-            foul_df = pd.read_xml(xml)
+            card_df = pd.read_xml(xml)
         else:
             return pd.DataFrame()
 
