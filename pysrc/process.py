@@ -4,11 +4,54 @@ import lxml.etree as etree
 import sqlite3 as sql
 from tqdm.notebook import tqdm
 
-__all__ = ['DB', 'CM']
+from sklearn.metrics import precision_recall_fscore_support, confusion_matrix, ConfusionMatrixDisplay
 
+__all__ = ['DB', 'CM', 'metric_suite']
 
-def CM(pred, true):
-    dd
+'''
+    dfghjkl;
+'''
+def metric_suite(clf, X, y_true, labels = ['W' , 'D', 'L']):
+    y_pred = clf.predict(X)
+
+    precision, recall, f1, support = precision_recall_fscore_support(
+        y_true = y_true, y_pred = y_pred, labels = labels
+    )
+    metrics = {
+        'Accuracy' : np.mean(y_pred == y_true),
+        'Precision' : precision,
+        'Recall' : recall,
+        'F1' : f1,
+        'Support' : support
+    }
+    return pd.DataFrame(metrics)
+
+'''
+    dfrtgyuio
+'''
+def CM(y_pred, y_true, labels = ['W', 'D', 'L']):
+    fig, axs = plt.subplots(1, 2, figsize = (15, 5))
+
+    cm = confusion_matrix(y_true = y_true, y_pred = y_pred, labels = labels)#, normalize = 'true')
+    disp = ConfusionMatrixDisplay(
+        confusion_matrix = cm,
+        display_labels = labels
+    )
+    disp.plot(cmap =  plt.cm.Blues, ax = axs[0])
+    
+    axs[0].set(title = title + 'Accuracy: ' + str(round(np.mean(y_pred == y_true),2)))
+    
+    cm = confusion_matrix(y_true = y_true, y_pred = y_pred, labels = labels, normalize = 'true')    
+    disp = ConfusionMatrixDisplay(
+        confusion_matrix = cm,
+        display_labels = labels
+    )
+    disp.plot(cmap =  plt.cm.Blues, ax = axs[1])
+    
+    axs[1].set(title = 'Normalized')
+
+    plt.show()
+
 
 class DB:
 
