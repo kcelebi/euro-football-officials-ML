@@ -10,13 +10,14 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(nnet)
 library(broom)
-library(MASS)
+#library(MASS)
 ```
 
 
 ```{r}
 df <- read.csv('../../data/prep_data.csv')
-df
+prem.df <- read.csv('../../data/prem_data_elo.csv')
+prem.df %>% Select( -home_team_api_id_y)#, -away_team_api_id_y)
 ```
 
 ```{r}
