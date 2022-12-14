@@ -3,27 +3,39 @@ import pandas as pd
 import lxml.etree as etree
 import sqlite3 as sql
 from tqdm.notebook import tqdm
+import matplotlib.pyplot as plt
 
-from sklearn.metrics import precision_recall_fscore_support, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import (
+    precision_recall_fscore_support,
+    confusion_matrix,
+    ConfusionMatrixDisplay,
+    precision_score, recall_score
+    )
 
 __all__ = ['DB', 'CM', 'metric_suite']
 
 '''
     dfghjkl;
 '''
-def metric_suite(clf, X, y_true, labels = ['W' , 'D', 'L']):
+def metric_suite(clf, X, y_true, labels = ['W' , 'D', 'L'], cm = True):
     y_pred = clf.predict(X)
 
     precision, recall, f1, support = precision_recall_fscore_support(
-        y_true = y_true, y_pred = y_pred, labels = labels
+        y_true = y_true, y_pred = y_pred, labels = labels, zero_division = 0
     )
+
     metrics = {
-        'Accuracy' : np.mean(y_pred == y_true),
-        'Precision' : precision,
-        'Recall' : recall,
-        'F1' : f1,
-        'Support' : support
+        'Class' : labels + ['Total'],
+        'Accuracy' : [np.mean(y_pred[y_true == x] == y_true[y_true == x]) for x in labels] + [np.mean(y_pred == y_true)],
+        'Precision' : list(precision) + [np.dot(precision, support)/np.sum(support)],
+        'Recall' : list(recall) + [np.dot(recall, support)/np.sum(support)],
+        'F1' : list(f1) + [np.dot(f1, support)/np.sum(support)],
+        'Support' : list(support) + [np.sum(support)]
     }
+
+    if cm:
+        CM(y_pred = y_pred, y_true = y_true, labels = labels)
+
     return pd.DataFrame(metrics)
 
 '''
@@ -39,7 +51,7 @@ def CM(y_pred, y_true, labels = ['W', 'D', 'L']):
     )
     disp.plot(cmap =  plt.cm.Blues, ax = axs[0])
     
-    axs[0].set(title = title + 'Accuracy: ' + str(round(np.mean(y_pred == y_true),2)))
+    axs[0].set(title = 'Accuracy: ' + str(round(np.mean(y_pred == y_true),2)))
     
     cm = confusion_matrix(y_true = y_true, y_pred = y_pred, labels = labels, normalize = 'true')    
     disp = ConfusionMatrixDisplay(
