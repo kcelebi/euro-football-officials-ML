@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(nnet)
 library(broom)
+library(dplyr)
 #library(MASS)
 ```
 
@@ -17,21 +18,28 @@ library(broom)
 ```{r}
 df <- read.csv('../../data/prep_data.csv')
 prem.df <- read.csv('../../data/prem_data_elo.csv')
-prem.df %>% Select( -home_team_api_id_y)#, -away_team_api_id_y)
+prem.df <- prem.df %>% dplyr::select( -home_team_api_id_y, -away_team_api_id_y)
 ```
 
 ```{r}
-small <- df %>% select(
-  -match_api_id, -date,
-  -home_team_api_id, -home_team_name,
-  -away_team_name, -away_team_api_id, 
+#small <- prem.df %>% dplyr::select(
+#  -match_api_id, -date,
+#  -home_team_api_id, -home_team_name,
+#  -away_team_name, -away_team_api_id, 
+#  -home_team_goal, -away_team_goal)
+
+small <- prem.df %>% dplyr::select(
+  -match_api_id, -date, -league_id,
+  -home_team_api_id_x, -home_team_name,
+  -away_team_name, -away_team_api_id_x, 
   -home_team_goal, -away_team_goal)
 
 train <- sample(1:nrow(small), nrow(small)*0.75)
 test <- (1:nrow(small))[-train]
 
 logit <- multinom(result ~ .,small[train,])
-clean <- logit %>% tidy() %>% filter(p.value < 0.05) %>% mutate(odds_estimate = exp(estimate)) %>% select(-std.error, -statistic, -p.value)
+logit %>% tidy()
+clean <- logit %>% tidy() %>% filter(p.value < 0.05) %>% mutate(odds_estimate = exp(estimate)) %>% dplyr::select(-std.error, -statistic, -p.value)
 
 
 L_intercept <- (clean %>% filter(y.level== 'L' & term == '(Intercept)'))$estimate

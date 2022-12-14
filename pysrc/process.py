@@ -4,7 +4,11 @@ import lxml.etree as etree
 import sqlite3 as sql
 from tqdm.notebook import tqdm
 
-__all__ = ['DB']
+__all__ = ['DB', 'CM']
+
+
+def CM(pred, true):
+    dd
 
 class DB:
 
