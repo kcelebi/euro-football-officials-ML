@@ -2,3 +2,4 @@ data/*.sqlite
 data/*.csv
 pysrc/.ipynb_checkpoints
 .Rproj.user
+pysrc/*.sav
