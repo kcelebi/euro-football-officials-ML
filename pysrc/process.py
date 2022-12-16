@@ -11,8 +11,15 @@ from sklearn.metrics import (
     ConfusionMatrixDisplay,
     precision_score, recall_score
     )
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
 
-__all__ = ['DB', 'CM', 'metric_suite']
+__all__ = ['DB', 'CM', 'metric_suite', 'transform_target', 'RFpipe', 'RFinterpipe', 'Logitpipe', 'train_test']
 
 '''
     dfghjkl;
@@ -63,6 +70,60 @@ def CM(y_pred, y_true, labels = ['W', 'D', 'L']):
     axs[1].set(title = 'Normalized')
 
     plt.show()
+
+def transform_target(X, y, class_labels = ['W', 'D', 'L'], weight = True, down_sample = True):
+    if weight and down_sample:
+        size = np.min(np.unique(pd.concat([y[y == x] for x in class_labels]), return_counts = True)[1])
+        idx = [np.random.choice(y[y == x].index.values, size = size) for x in class_labels]
+        down_idx = np.concatenate(idx)
+        weights = {}
+        for class_ in class_labels:
+            weights[class_] = y[y == class_].shape[0]/size
+
+        return X.iloc[down_idx], y[down_idx], weights
+    elif weight and not down_sample:
+        size = np.max(np.unique(pd.concat([y[y == x] for x in class_labels]), return_counts = True)[1])
+        weights = {}
+        for i, class_ in enumerate(class_labels):
+            weights[class_] = size/y[y == class_].shape[0]
+        return X, y, weights
+    else:
+        y_ = pd.concat([y[y == x] for x in class_labels])
+        return X.iloc[y_.index], y_, None
+
+def RFpipe(weights = None, params = {}):
+    return Pipeline(steps = [
+        ('scaler', StandardScaler()),
+        ('rf', RandomForestClassifier(class_weight = weights, **params))
+    ])
+
+def RFinterpipe(weights = None, params = {}):
+    return Pipeline(steps = [
+        ('scaler', StandardScaler()),
+        ('inter', PolynomialFeatures(2, interaction_only = True, include_bias = False)),
+        ('rf', RandomForestClassifier(class_weight = weights, **params))
+    ])
+
+def Logitpipe(weights = None, params = {}):
+    return Pipeline(steps = [
+        ('scaler', StandardScaler()),
+        ('logit', LogisticRegression(class_weight = weights, **params))
+    ])
+
+def train_test(func, X, y, weight, down_sample, class_labels = ['W', 'D', 'L'], cm = False, seed = None, return_clf = False):
+    if seed != None:
+        np.random.seed(seed)
+    X_ds, y_ds, weights = transform_target(X, y, class_labels = class_labels, weight = weight, down_sample = down_sample)
+    X_train, X_test, y_train, y_test = train_test_split(X_ds, y_ds, test_size = 0.2, stratify = y_ds)
+
+    print('>>>Preprocess done', weights)
+
+    clf = func(weights = weights).fit(X_train, y_train)
+    print(metric_suite(clf, X_train, y_train, labels = class_labels, cm = cm))
+    print(metric_suite(clf, X_test, y_test, labels = class_labels, cm = cm))
+    
+    if return_clf:
+        return clf
 
 
 class DB:
