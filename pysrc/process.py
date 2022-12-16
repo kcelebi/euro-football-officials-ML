@@ -24,7 +24,7 @@ __all__ = ['DB', 'CM', 'metric_suite', 'transform_target', 'RFpipe', 'RFinterpip
 '''
     dfghjkl;
 '''
-def metric_suite(clf, X, y_true, labels = ['W' , 'D', 'L'], cm = True):
+def metric_suite(clf, X, y_true, labels = ['W' , 'D', 'L'], type_ = '', cm = True, save = None):
     y_pred = clf.predict(X)
 
     precision, recall, f1, support = precision_recall_fscore_support(
@@ -41,14 +41,14 @@ def metric_suite(clf, X, y_true, labels = ['W' , 'D', 'L'], cm = True):
     }
 
     if cm:
-        CM(y_pred = y_pred, y_true = y_true, labels = labels)
+        CM(y_pred = y_pred, y_true = y_true, type_ = type_, labels = labels, save = save)
 
     return pd.DataFrame(metrics)
 
 '''
     dfrtgyuio
 '''
-def CM(y_pred, y_true, labels = ['W', 'D', 'L']):
+def CM(y_pred, y_true, type_ = '', labels = ['W', 'D', 'L'], save = None):
     fig, axs = plt.subplots(1, 2, figsize = (15, 5))
 
     cm = confusion_matrix(y_true = y_true, y_pred = y_pred, labels = labels)#, normalize = 'true')
@@ -58,7 +58,7 @@ def CM(y_pred, y_true, labels = ['W', 'D', 'L']):
     )
     disp.plot(cmap =  plt.cm.Blues, ax = axs[0])
     
-    axs[0].set(title = 'Accuracy: ' + str(round(np.mean(y_pred == y_true),2)))
+    axs[0].set(title = type_ + ' Accuracy: ' + str(round(np.mean(y_pred == y_true),2)))
     
     cm = confusion_matrix(y_true = y_true, y_pred = y_pred, labels = labels, normalize = 'true')    
     disp = ConfusionMatrixDisplay(
@@ -67,7 +67,10 @@ def CM(y_pred, y_true, labels = ['W', 'D', 'L']):
     )
     disp.plot(cmap =  plt.cm.Blues, ax = axs[1])
     
-    axs[1].set(title = 'Normalized')
+    axs[1].set(title = type_ + ' Normalized')
+
+    if save != None:
+        plt.savefig(save, dpi = 200)
 
     plt.show()
 
