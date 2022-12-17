@@ -126,7 +126,7 @@ def train_test(func, X, y, weight, down_sample, class_labels = ['W', 'D', 'L'], 
     print(metric_suite(clf, X_test, y_test, labels = class_labels, cm = cm))
     
     if return_clf:
-        return clf
+        return clf, X_train, X_test, y_train, y_test
 
 
 class DB:
