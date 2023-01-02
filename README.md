@@ -6,14 +6,13 @@ These positions can often make-or-break a team's chances of scoring, and it is i
 
 This topic has been discussed in house-holds, bars, stadiums, and board-meetings for quite some time now. It would be valuable to see more of an analytical approach to this question, and understand the implications that could arise. 
 
+Feel free to read the finalized results in the [unofficial writeup](documents/*.pdf).
+
 ## Table of Contents
 
 - [Project Usage](#project-usage)
 - [Data Selection](#data-selection)
-- [Feature Engineering](#feature-engineering)
-- [Model Selection](#model-selection)
 - [Results](#results)
-- [Discussion](#discussion)
 
 ## Project Usage
 
@@ -21,10 +20,4 @@ This topic has been discussed in house-holds, bars, stadiums, and board-meetings
 
 This data uses the [Open Database License](https://opendatacommons.org/licenses/odbl/1-0/) and was not created by me.
 
-## Feature Engineering
-
-## Model Selection
-
 ## Results
-
-## Discussion
