@@ -6,7 +6,7 @@ These positions can often make-or-break a team's chances of scoring, and it is i
 
 This topic has been discussed in house-holds, bars, stadiums, and board-meetings for quite some time now. It would be valuable to see more of an analytical approach to this question, and understand the implications that could arise. 
 
-Feel free to read the finalized results in the [unofficial writeup](documents/*.pdf).
+Feel free to read the finalized results in the [unofficial writeup](documents/STA325_final_report.pdf).
 
 ## Table of Contents
 
