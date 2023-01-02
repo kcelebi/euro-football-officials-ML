@@ -113,7 +113,7 @@ def Logitpipe(weights = None, params = {}):
         ('logit', LogisticRegression(class_weight = weights, **params))
     ])
 
-def train_test(func, X, y, weight, down_sample, class_labels = ['W', 'D', 'L'], cm = False, seed = None, return_clf = False):
+def train_test(func, X, y, weight, down_sample, rf_params = None, class_labels = ['W', 'D', 'L'], cm = False, seed = None, return_clf = False):
     if seed != None:
         np.random.seed(seed)
     X_ds, y_ds, weights = transform_target(X, y, class_labels = class_labels, weight = weight, down_sample = down_sample)
